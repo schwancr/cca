@@ -1,0 +1,72 @@
+\documentclass[onecolumn,floatfix,nofootinbib,aps,notitlepage]{revtex4-1}
+\usepackage[utf8]{inputenc}
+
+\usepackage{amsmath}    % need for subequations
+\usepackage{amssymb}    % for symbols
+\usepackage{graphicx}   % need for figures
+\usepackage{verbatim}   % useful for program listings
+\usepackage{color}      % use if color is used in text
+\usepackage{subfigure}  % use for side-by-side figures
+%\usepackage{hyperref}   % use for hypertext links, including those to external documents and URLs
+\usepackage[capitalise]{cleveref}   % use for referencing figures/equations
+\usepackage{soul}
+
+\newcommand{\bra}[1]{\ensuremath{\left\langle#1\right|}}
+\newcommand{\ket}[1]{\ensuremath{\left|#1\right\rangle}}
+\newcommand{\braket}[2]{\ensuremath{\left\langle#1\right|\left.#2\right\rangle}}
+
+
+\begin{document}
+\title{Canonical Correlation Analysis}
+\author{Christian R. Schwantes}
+\begin{abstract}
+I'm going to re-derive a result proving a particular version of CCA where the Y-space is one-dimensional.
+\end{abstract}
+\maketitle
+
+Let $X = \{\ket{x_t}\}_{t=1}^N \subset \mathbb{R}^d$ and $Y = \{a_t\}_{t=1}^N \subset \mathbb{R}$. The goal is to find a vector $\ket{v}$ such that when $X$ is projected onto $\ket{v}$ it is maximally correlated with the corresponding entries in $Y$. So we want to maximize the following:
+$$ \frac{\textnormal{cov}\left(\braket{v}{x_t}, a_t\right)}{\sqrt{\textnormal{cov}\left(\braket{v}{x_t}, \braket{v}{x_t}\right)}
+ \sqrt{\textnormal{cov}\left(a_t, a_t\right)}}$$ Let's assume that everything has zero mean; if that is not the case, then we can always preprocess either set. If we further assume that $Y$ has unit variance (again we can preprocess the set if necessary), then we can rewrite the objective function as:
+$$ \frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
+	{\sqrt{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t}\braket{x_t}{v}}}$$ Maximizing this function is the same as maximizing the numerator and constraining the denominator to be one. This constraint is the same as constraining the variance of $X$ onto the vector $\ket{v}$ is one. As such we can set up a Lagrange function:
+$$ \Lambda = \frac{1}{N} \sum_{t=1}^N \braket{v}{x_t} a_t - \lambda \left(\bra{v}\Sigma\ket{v} - 1\right) $$ where $\Sigma$ is the covariance matrix. We can differentiate and get to a system of equations:
+\begin{align*} 
+\frac{1}{N} \sum_{t=1}^N \ket{x_t} a_t - 2 \lambda \Sigma \ket{v} &= 0 \\
+\bra{v}\Sigma\ket{v} - 1 = 0 
+\end{align*} By multiplying on the left by $\bra{v}$, we can solve the first equation for lambda:
+$$ \lambda = \frac{1}{2N} \sum_{t=1}^N \braket{v}{x_t} a_t $$ Now, plugging in gives the final answer:
+\begin{align*}
+\frac{1}{N} \sum_{t=1}^N \ket{x_t}a_t - \left(\frac{1}{N}\sum_{j=1}^N \braket{v}{x_j}a_j\right) \Sigma \ket{v} &= 0\\
+\end{align*} This cannot be solved on paper, but we can solve it with one of many root-finding algorithms. Additionally, this whole process can be kerneled by rewriting the above in terms of inner products alone, and assuming that the solution is a linear combination of the elements of $X$.
+
+Define $M$ as the data matrix:
+
+$$ M = \left[ 
+\begin{array}{c}
+\bra{x_1} \\
+\bra{x_2} \\
+\vdots \\
+\bra{x_N} \\
+\end{array} \right] \;\;\;\;
+M^T = \Big[ 
+\begin{array}{cccc}
+\ket{x_1} & \ket{x_2} & \hdots & \ket{x_N} \\
+\end{array} \Big]
+$$
+Then we can rewrite the solution as:
+$$ \frac{1}{N} M^T \vec{a} - \left( \frac{1}{N} \bra{v} M^T \vec{a}\right) \Sigma \ket{v} = 0 $$
+
+Additionally, we can regularize the solution to get reasonable results, by changing the objective function to:
+$$ \frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
+	{\sqrt{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t}\braket{x_t}{v} + \eta || v ||_p}} $$ If you use the $\ell_2$ norm, then the solution is convenient, because it amounts to a ridge regression on $\Sigma$:
+
+\begin{align*}
+\frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
+	{\sqrt{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t}\braket{x_t}{v} + \eta || v ||_p}} &= \frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
+	{\sqrt{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t}\braket{x_t}{v} + \eta \braket{v}{v}}} \\
+	&= \frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
+	{\sqrt{\bra{v}\Big[\Sigma + \eta I\Big]\ket{v}}} 
+\end{align*} And so the solution is given by:
+$$ \frac{1}{N} M^T \vec{a} - \left( \frac{1}{N} \bra{v} M^T \vec{a}\right) \big[\Sigma + \eta I\big] \ket{v} = 0 $$
+ 
+\end{document}
