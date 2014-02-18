@@ -2,7 +2,7 @@
 
 import numpy as np
 
-def l1(v, alpha=1E5):
+def l1(v, alpha=1E6):
     """
     Compute the approximate l1 norm on vector
 
@@ -17,12 +17,20 @@ def l1(v, alpha=1E5):
     jac : value of the jacobian of the approximate l1 norm at v
     """
 
-    v = np.abs(v)
+    temp = 1. / alpha * (np.log(1. + np.exp(- alpha * v)) + np.log(1. + np.exp(alpha * v)))
+    ind = np.isinf(temp) + np.isnan(temp)
+    temp[ind] = np.abs(v[ind])
 
-    val = np.sum(v + 1. / alpha * np.log(1. + np.exp(- alpha * v)))
+    val = temp.sum()
+    val = np.abs(v).sum()
 
     jac = 1. / (1. + np.exp(- alpha * v)) - 1. / (1. + np.exp(alpha * v))
+    ind = np.isinf(jac) + np.isnan(jac)
+    jac[ind] = np.sign(v[ind])
 
+    jac = np.sign(v)
+    print val
+    print jac.flatten()
     return val, jac
 
 
