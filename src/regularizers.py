@@ -2,7 +2,7 @@
 
 import numpy as np
 
-def l1(v, alpha=1E6):
+def l1(v, alpha=1E4):
     """
     Compute the approximate l1 norm on vector
 
@@ -18,19 +18,15 @@ def l1(v, alpha=1E6):
     """
 
     temp = 1. / alpha * (np.log(1. + np.exp(- alpha * v)) + np.log(1. + np.exp(alpha * v)))
-    ind = np.isinf(temp) + np.isnan(temp)
+    ind = np.where(np.isinf(temp) + np.isnan(temp))
     temp[ind] = np.abs(v[ind])
-
     val = temp.sum()
-    val = np.abs(v).sum()
+
+    print np.abs(v).sum(), np.square(v).sum()
 
     jac = 1. / (1. + np.exp(- alpha * v)) - 1. / (1. + np.exp(alpha * v))
-    ind = np.isinf(jac) + np.isnan(jac)
+    ind = np.where(np.isinf(jac) + np.isnan(jac))
     jac[ind] = np.sign(v[ind])
-
-    jac = np.sign(v)
-    print val
-    print jac.flatten()
     return val, jac
 
 

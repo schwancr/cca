@@ -1,7 +1,7 @@
 
 
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import root, fsolve
 import regularizers as reg
 class CCA(object):
     def __init__(self, regularization=None, regularization_strength=0.0):
@@ -121,7 +121,7 @@ class CCA(object):
             left = Ma * left
             right = np.float(v.T.dot(Ma)) * right
             # all done.
-            print left - right
+            print np.linalg.norm(left - right)
             return (left - right).flatten()
             
         #v0 = np.ones((M.shape[0], 1), dtype=np.float)
