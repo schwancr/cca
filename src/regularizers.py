@@ -2,7 +2,7 @@
 
 import numpy as np
 
-def l1(v, alpha=1E4):
+def l1_alpha(v, alpha=1E2):
     """
     Compute the approximate l1 norm on vector
 
@@ -19,10 +19,11 @@ def l1(v, alpha=1E4):
 
     temp = 1. / alpha * (np.log(1. + np.exp(- alpha * v)) + np.log(1. + np.exp(alpha * v)))
     ind = np.where(np.isinf(temp) + np.isnan(temp))
+    print v[ind]
     temp[ind] = np.abs(v[ind])
     val = temp.sum()
 
-    print np.abs(v).sum(), np.square(v).sum()
+    #print np.abs(v).sum(), np.square(v).sum()
 
     jac = 1. / (1. + np.exp(- alpha * v)) - 1. / (1. + np.exp(alpha * v))
     ind = np.where(np.isinf(jac) + np.isnan(jac))
@@ -46,8 +47,31 @@ def l2(v):
     """
 
     val = np.sum(np.square(v))
-
     jac = 2 * v
+
+    return val, jac
+
+
+def l1(v, mu=1E-4, eps=1E-5):
+
+    temp = np.zeros(v.shape)
+    small_ind = np.where(np.abs(v) < mu)
+    big_ind = np.where(np.abs(v) >= mu)
+
+    temp[small_ind] = np.square(v[small_ind]) / 2. / mu
+    temp[big_ind] = np.abs(v[big_ind]) - mu / 2.
+
+    print v[temp.argmax()], temp.max()
+    val = np.sum(temp)
+
+    jac = temp
+    jac[small_ind] = 2. * v[small_ind] / mu
+    jac[big_ind] = np.sign(v[big_ind]) 
+
+    val += eps * np.square(v).sum()
+    jac += eps * v
+
+    #print val, jac.min(), jac.max(), np.abs(jac).min()
 
     return val, jac
 

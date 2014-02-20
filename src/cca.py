@@ -126,6 +126,7 @@ class CCA(object):
             
         #v0 = np.ones((M.shape[0], 1), dtype=np.float)
         v0 = np.random.normal(size=M.shape[0]).reshape((-1, 1)).astype(np.float64)
+        v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
         print sigma.shape, v0.shape
 
         self._sol = root(_func, x0=v0)
