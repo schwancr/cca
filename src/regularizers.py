@@ -52,7 +52,7 @@ def l2(v):
     return val, jac
 
 
-def l1(v, mu=1E-4, eps=1E-5):
+def l1(v, mu=1E-4, eps=1E-4):
 
     temp = np.zeros(v.shape)
     small_ind = np.where(np.abs(v) < mu)
