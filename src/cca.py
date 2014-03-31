@@ -1,7 +1,7 @@
-
-
 import numpy as np
 from scipy.optimize import root, fsolve
+from mdtraj import io
+import pickle
 import regularizers as reg
 class CCA(object):
     def __init__(self, regularization=None, regularization_strength=0.0):
@@ -271,3 +271,5 @@ class CCA(object):
         if 'sol' in filehandler.keys():
             cca_object.v = filehandler['sol']
             cca_object._has_solution = True
+
+        return cca_object
