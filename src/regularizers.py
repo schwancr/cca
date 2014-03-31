@@ -52,7 +52,10 @@ def l2(v):
     return val, jac
 
 
-def l1(v, mu=1E-4, eps=1E-5):
+def l1(v):
+    return _l1_soft_v(v, mu=1E-8)
+
+def _l1_soft_v(v, mu=1E-6, eps=1E-5):
 
     temp = np.zeros(v.shape)
     small_ind = np.where(np.abs(v) < mu)
@@ -68,10 +71,18 @@ def l1(v, mu=1E-4, eps=1E-5):
     jac[small_ind] = 2. * v[small_ind] / mu
     jac[big_ind] = np.sign(v[big_ind]) 
 
-    val += eps * np.square(v).sum()
-    jac += eps * v
+    #val += eps * np.square(v).sum()
+    #jac += eps * v
 
     #print val, jac.min(), jac.max(), np.abs(jac).min()
+
+    return val, jac
+
+def _l1_hyper(v, b=1E-6):
+    v2 = np.square(v)
+
+    val = np.sum(np.power((v2 + b**2), 0.5) - b)
+    jac = v * np.power((v2 + b**2), -0.5)
 
     return val, jac
 

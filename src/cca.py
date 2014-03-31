@@ -67,6 +67,7 @@ class CCA(object):
             self.regularizer = regularization
 
         self.eta = float(regularization_strength)
+        self._has_solution = False
 
 
     def fit(self, M, a):
@@ -82,12 +83,6 @@ class CCA(object):
             one dimensional array corresponding to the scalar value for each
             column of data (n_points,)
         
-        self.M = data
-        self.a = a.flatten()
-
-        if self.M.shape[1] != self.a.shape[0]:
-            raise Exception("Your data should have points stored as columns.")
-
         """
         a = a.flatten()
         if a.shape[0] != M.shape[1]:
@@ -137,3 +132,142 @@ class CCA(object):
             print "error when computing the root (%s)" % self._sol.message
         
         return self
+
+
+    def predict(self, M):
+        """
+        predict the value of the output variable given the solution.
+
+        Parameters
+        ----------
+        M : np.ndarray 
+            Data to predict. This can be the training data or other data. The shape
+            should be the same as passed to fit (n_features, n_points)
+
+        Returns
+        -------
+        a : np.ndarray
+            output prediction. The shape is (n_points,). Remember that we do not
+            mean subtract this data so keep that in mind
+        """
+    
+        if not self._has_solution:
+            raise Exception("you must run fit() first in order to use this method")
+
+
+        if not self.v.shape[0] == M.shape[0]:
+            raise Exception("Data (%d) is the wrong dimension (%d)" % (M.shape[0], self.v.shape[0]))
+
+
+        a = self.v.T.dot(M).flatten()
+
+        return a
+
+
+    def evaluate(self, a_pred, a_ref):
+        """
+        Evaluate the result of a prediction on test data.
+
+        Paramaters
+        ----------
+        a_pred : np.ndarray
+            predicted data. shape: (n_points,)
+        a_ref : np.ndarray
+            actual data. shape: (n_points,)
+
+        Returns
+        -------
+        corr : float
+            This is the score of the predicted data. In this case, we're just 
+            calculating the covariance, since this is what CCA is attempting
+            to maximize.
+        """
+
+        a_pred = a_pred - a_pred.mean()
+        a_ref = a_ref - a_ref.mean()
+
+        a_pred = a_pred / a_pred.std()
+        a_ref = a_ref / a_ref.std()
+
+        return np.dot(a, a_ref)
+
+    
+    def predict_evaluate(self, M, a):
+        """
+        Predict the a-values for test data and score it compared to the actual
+        values given by a.
+
+        Parameters
+        ----------
+        M : np.ndarray
+            test data to evaluate. This should have a shape corresponding to:
+            (n_features, n_points)
+        a : np.ndarray
+            the actual a-values for this test data. This should have a shape
+            corresponding to: (n_points,)
+
+        Returns
+        -------
+        corr : float
+            This is the score of the predicted data. In this case, we're just 
+            calculating the covariance, since this is what CCA is attempting
+            to maximize.
+        """
+
+        a_pred = self.predict(M)
+        return self.evaluate(a_pred, a)
+
+
+    def save(self, filename):
+        """
+        Save the results and everything needed to use this object again.
+
+        Parameters
+        ----------
+        filename : str
+            filename to save the data to. Will use mdtraj.io.saveh 
+
+        Returns
+        -------
+        filename : str
+            the same filename in case you want it back.
+        """
+
+        kwargs = {}
+        kwargs['regularizer'] = np.array([pickle.dumps(self.regularizer)])
+        kwargs['eta'] = np.array([self.eta])
+
+        if self._has_solution:
+            kwargs['sol'] = self.v
+
+        io.saveh(filename, **kwargs)
+
+        return filename
+
+
+    @classmethod
+    def load(cls, filename):
+        """
+        Load a previously saved CCA object
+
+        Parameters
+        ----------
+        filename : str
+            filename to load data from
+
+        Returns
+        -------
+        cca_object : CCA
+            loaded cca_object
+        """
+            
+        filehandler = io.loadh(filename)
+
+        regularizer = pickle.loads(filehandler['regularizer'][0])
+        eta = filehandler['eta'][0]
+
+        cca_object = cls(regularization=regularizer, regularization_strength=eta)
+
+        if 'sol' in filehandler.keys():
+            cca_object.v = filehandler['sol']
+            cca_object._has_solution = True
