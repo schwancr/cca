@@ -5,11 +5,11 @@
 \usepackage{amssymb}    % for symbols
 \usepackage{graphicx}   % need for figures
 \usepackage{verbatim}   % useful for program listings
-\usepackage{color}      % use if color is used in text
+\usepackage{color, soul}      % use if color is used in text
 \usepackage{subfigure}  % use for side-by-side figures
 %\usepackage{hyperref}   % use for hypertext links, including those to external documents and URLs
 \usepackage[capitalise]{cleveref}   % use for referencing figures/equations
-\usepackage{soul}
+
 
 \newcommand{\bra}[1]{\ensuremath{\left\langle#1\right|}}
 \newcommand{\ket}[1]{\ensuremath{\left|#1\right\rangle}}
@@ -17,13 +17,31 @@
 
 
 \begin{document}
-\title{Canonical Correlation Analysis}
-\author{Christian R. Schwantes}
+\title{Interpretation and Visualization of a Markov State Model's Relaxation Processes}
+\author{Christian R. Schwantes and Vijay S. Pande}
 \begin{abstract}
-I'm going to re-derive a result proving a particular version of CCA where the Y-space is one-dimensional.
+Markov State Models (MSMs) have been applied in many fields to provide a kinetic model for complicated dynamics. These models have the advantage of turning a high-dimensional time series in $\mathbb{R}^{d}$ (where $d$ is the dimensionality of the system) into a simpler jump process in a discrete state space. However, in order to maintain quantitative agreement with the original dataset, the number of states must remain somewhat high, with most models having at least 100s and sometimes thousands of states. Interpretation of this simpler, yet still complicated representation can be difficult. For this, we suggest a version of a tool from statistical learning: Canonical Correlation Analysis. Given some set of degrees of freedom, we want to calculate the linear combination of the input degrees of freedom that are maximally correlated with the output data. We apply this method (with regularization) to MSMs built on protein folding simulations, and find that the method can successfully find projections that are correlated with the MSM's eigenvectors. Importantly, the results can be physically interpreted and provide a molecular description of each of the slowest eigenvectors.
 \end{abstract}
 \maketitle
 
+\section{Introduction}
+\begin{itemize}
+\item Simulation can provide specific insight into processes that we can only observe indirectly
+\item But by considering this complicated system we introduce a new problem: how do we interpret the results?
+\item Dimensionality reduction works well (PCA, tICA, Diff. Maps., etc.)
+\item For dynamical data, MSMs can be employed to provide a simple representation of dynamics
+\item The MSM provides a simpler framework, but it is often too complicated to make sense of
+\item Lumping methods can aid with this, however there are problems (I don't know if I really want to say this an alternative. I know a lumper will review this so I think I'll be diplomatic)
+\item But if we have some physically motivated ideas for what the eigenvectors represent, then we can do well! (For instance we can calculate the RMSD to the native state and see that the folding eigenvector is well resolved along this order parameter.)
+\item But we can do so much better than guessing!!
+\item There are many algorithms that can be used for feature selection, but we're going to use CCA because of its simplicity.
+\end{itemize}
+
+\section{MSM Theory}
+\hl{Add MSM theory for discussing the eigenvectors and what they mean}
+
+\section{Proof of the Solution}
+\hl{This should probably just end up in SI or an appendix as this has been proven somewhere before}.
 Let $X = \{\ket{x_t}\}_{t=1}^N \subset \mathbb{R}^d$ and $Y = \{a_t\}_{t=1}^N \subset \mathbb{R}$. The goal is to find a vector $\ket{v}$ such that when $X$ is projected onto $\ket{v}$ it is maximally correlated with the corresponding entries in $Y$. So we want to maximize the following:
 $$ \frac{\textnormal{cov}\left(\braket{v}{x_t}, a_t\right)}{\sqrt{\textnormal{cov}\left(\braket{v}{x_t}, \braket{v}{x_t}\right)}
  \sqrt{\textnormal{cov}\left(a_t, a_t\right)}}$$ Let's assume that everything has zero mean; if that is not the case, then we can always preprocess either set. If we further assume that $Y$ has unit variance (again we can preprocess the set if necessary), then we can rewrite the objective function as:
@@ -68,5 +86,20 @@ $$ \frac{\frac{1}{N}\sum_{t=1}^N \braket{v}{x_t} a_t}
 	{\sqrt{\bra{v}\Big[\Sigma + \eta I\Big]\ket{v}}} 
 \end{align*} And so the solution is given by:
 $$ \frac{1}{N} M^T \vec{a} - \left( \frac{1}{N} \bra{v} M^T \vec{a}\right) \big[\Sigma + \eta I\big] \ket{v} = 0 $$
+
+\section{Methods}
+\begin{itemize}
+\item We solve the system of equations using \hl{scipy.optimize.root (change this to the algorithm employed together with the parameters that are default)}. Admittedly, there are many ways of solving the optimization problem discussed above, but in practice this scheme worked well
+\item Each feature set consisted of all $\phi$ and $\psi$ dihedral angles \hl{(these were included as $\cos\theta, \sin\theta$)}, all possible backbone hydrogen bonds, and all possible residue-residue distances in the protein.
+\item We normalized each of the features to have unit variance since the magnitude of a set of features could have an advantage (or disadvantage) when correlating with the MSM eigenvectors (because of the regularization) (Is this really true? Since we're optimizing the normalized projection...)
+\item The idea of the above is in lagrange setup, the results are constrained to have unit variance and you are essentially calculating the penalty based on:
+
+$$ \frac{\ket{v}}{\sqrt{\bra{v}\Sigma\ket{v}}} $$
+\end{itemize}
+
+\section{CCA Applied to NTL9 MSM}
+\begin{itemize}
+\item in the case of NTL9, we were able to guess a reasonably correct answer by using average hydrogen bonds weighted by the MSM's eigenvectors (show a picture and write down the equation)
+\end{itemize}
  
 \end{document}

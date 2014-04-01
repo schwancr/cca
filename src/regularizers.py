@@ -2,36 +2,11 @@
 
 import numpy as np
 
-def l1_alpha(v, alpha=1E2):
-    """
-    Compute the approximate l1 norm on vector
-
-    Parameters
-    ----------
-    v : np.ndarray
-        vector to compute l1 norm
-
-    Returns
-    -------
-    val : value of the l1 norm of v
-    jac : value of the jacobian of the approximate l1 norm at v
-    """
-
-    temp = 1. / alpha * (np.log(1. + np.exp(- alpha * v)) + np.log(1. + np.exp(alpha * v)))
-    ind = np.where(np.isinf(temp) + np.isnan(temp))
-    print v[ind]
-    temp[ind] = np.abs(v[ind])
-    val = temp.sum()
-
-    #print np.abs(v).sum(), np.square(v).sum()
-
-    jac = 1. / (1. + np.exp(- alpha * v)) - 1. / (1. + np.exp(alpha * v))
-    ind = np.where(np.isinf(jac) + np.isnan(jac))
-    jac[ind] = np.sign(v[ind])
-    return val, jac
+def l1(v, hessian=False):
+    return _l1_hyper(v, b=1E-8, hessian=hessian)
 
 
-def l2(v):
+def l2(v, hessian=False):
     """
     Compute the l2 norm on a vector v
 
@@ -49,13 +24,15 @@ def l2(v):
     val = np.sum(np.square(v))
     jac = 2 * v
 
-    return val, jac
+    if not hessian:
+        return val, jac
+
+    else:
+        hess = np.eye(jac.shape[0]) * 2
+        return val, jac, hess
 
 
-def l1(v):
-    return _l1_soft_v(v, mu=1E-8)
-
-def _l1_soft_v(v, mu=1E-6, eps=1E-5):
+def _l1_soft_v(v, mu=1E-6, hessian=False):
 
     temp = np.zeros(v.shape)
     small_ind = np.where(np.abs(v) < mu)
@@ -71,20 +48,31 @@ def _l1_soft_v(v, mu=1E-6, eps=1E-5):
     jac[small_ind] = 2. * v[small_ind] / mu
     jac[big_ind] = np.sign(v[big_ind]) 
 
-    #val += eps * np.square(v).sum()
-    #jac += eps * v
+    if not hessian:
+        return val, jac
 
-    #print val, jac.min(), jac.max(), np.abs(jac).min()
+    else:
+        hess = np.zeros((jac.shape[0], jac.shape[0]))
+        hess[small_ind, small_ind] = 2. / mu
+        return val, jac, hess
 
-    return val, jac
 
-def _l1_hyper(v, b=1E-6):
+def _l1_hyper(v, b=1E-7, hessian=False):
     v2 = np.square(v)
 
     val = np.sum(np.power((v2 + b**2), 0.5) - b)
     jac = v * np.power((v2 + b**2), -0.5)
 
-    return val, jac
+    if not hessian:
+        return val, jac
+    
+    else:
+        hess = np.zeros((jac.shape[0], jac.shape[0]))
+        diag_ary = np.power((v2 + b**2), -0.5) * (1 - 0.5 * v2 / (v2 + b**2))
+        ind = np.arange(jac.shape[0])
+        hess[ind, ind] = diag_ary.flatten()
+
+        return val, jac, hess
 
 
 def _is_valid_reg(f):
@@ -119,4 +107,77 @@ def _is_valid_reg(f):
             print "first returned item should be a scalar"
             is_valid = False
 
+    
+    # now check that a hessian is available
+    try:
+        result = f(test, hessian=True)
+        is_valid = True
+    
+    except:
+        print "regularizer needs to be able to take hessian as a kwarg"
+        is_valid = False
+        return is_valid
+
+    if len(result) != 3:
+        print "regularizer needs to return the hessian when passed hessian=True"
+        is_valid = False
+
+    else:
+        res0, res1, res2 = result
+
+        if not isinstance(res1, np.ndarray) or not isinstance(res2, np.ndarray):
+            print "regularizer must return a number and two arrays when given hessian=True"
+            is_valid = False
+
+        else:
+            if res1.shape != test.shape:
+                print "jacobian should be the same shape as the input"
+                is_valid = False
+
+            if res2.shape[0] != test.shape[0] or res2.shape[1] != test.shape[0]:
+                print "hessian should have dimensions equal to the length of the input"
+                is_valid = False
+
+        try:
+            res0 = np.float(res0)
+        except:
+            print "first returned item should be a scalar"
+            is_valid = False
+
     return is_valid
+
+
+def _l1_alpha(v, alpha=1E2, hessian=False):
+    """
+    Compute the approximate l1 norm on vector
+
+    Parameters
+    ----------
+    v : np.ndarray
+        vector to compute l1 norm
+
+    Returns
+    -------
+    val : value of the l1 norm of v
+    jac : value of the jacobian of the approximate l1 norm at v
+    """
+
+    temp = 1. / alpha * (np.log(1. + np.exp(- alpha * v)) + np.log(1. + np.exp(alpha * v)))
+    ind = np.where(np.isinf(temp) + np.isnan(temp))
+    print v[ind]
+    temp[ind] = np.abs(v[ind])
+    val = temp.sum()
+
+    #print np.abs(v).sum(), np.square(v).sum()
+
+    jac = 1. / (1. + np.exp(- alpha * v)) - 1. / (1. + np.exp(alpha * v))
+    ind = np.where(np.isinf(jac) + np.isnan(jac))
+    jac[ind] = np.sign(v[ind])
+
+    if not hessian:
+        return val, jac
+    
+    else:
+        hess = np.zeros((jac.shape[0], jac.shape[0]))
+
+        return val, jac, hess

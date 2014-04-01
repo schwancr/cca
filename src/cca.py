@@ -1,10 +1,11 @@
 import numpy as np
-from scipy.optimize import root, fsolve
+from scipy.optimize import root, fsolve, fmin_ncg
 from mdtraj import io
 import pickle
 import regularizers as reg
 class CCA(object):
-    def __init__(self, regularization=None, regularization_strength=0.0):
+    def __init__(self, regularization=None, regularization_strength=0.0,
+                 method='root'):
         """
         This is a particular implementation of CCA, where one space is one
         dimensional. The problem is then phrased to ask for the projection
@@ -42,6 +43,10 @@ class CCA(object):
         regularization_strength : float, optional
             regularization strength. You should probably fit this with
             cross-validation
+        method : {'root', 'ncg'}
+            method to solve the CCA prolbem:
+                - root : scipy.optimize.root with default parameters
+                - ncg : scipy.fmin_ncg (newton conjugate gradient method)
         """
 
 
@@ -65,6 +70,13 @@ class CCA(object):
                     "jacobian.")
             
             self.regularizer = regularization
+
+        if method.lower() in ['root', 'ncg']:
+            self._method = method.lower()
+        
+        else:
+            self._method = 'root'
+            print "unknown method (%s), using 'root' instead"
 
         self.eta = float(regularization_strength)
         self._has_solution = False
@@ -94,6 +106,34 @@ class CCA(object):
         a = a / a.std()  # normalize a
         np.reshape(a, (-1, 1))
 
+        #self._sol = self._solver(M, a)
+        #self.v = self._sol.x
+        self.v = self._solver(M, a)
+
+        #if not self._sol.success:
+        #    print "error when computing the root (%s)" % self._sol.message
+        
+        return self
+
+
+    def _solver(self, M, a):
+        
+        if self._method == 'root':
+            return self._root(M, a)
+
+        elif self._method == 'ncg':
+            return self._max_ncg(M, a)
+
+        else:
+            raise Exception("bad value for method")
+
+
+    def _root(self, M, a):
+        """
+        private method for solving the CCA problem by using a root-finder on
+        the derivative of the lagrangian.
+        """
+
         Ma = M.dot(a).reshape((-1, 1))
         sigma = M.dot(M.T) / np.float(M.shape[1])  # could do - 1
 
@@ -122,16 +162,95 @@ class CCA(object):
         #v0 = np.ones((M.shape[0], 1), dtype=np.float)
         v0 = np.random.normal(size=M.shape[0]).reshape((-1, 1)).astype(np.float64)
         v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
-        print sigma.shape, v0.shape
 
-        self._sol = root(_func, x0=v0)
+        return root(_func, x0=v0).x
 
-        self.v = self._sol.x
 
-        if not self._sol.success:
-            print "error when computing the root (%s)" % self._sol.message
+    def _max_ncg(self, M, a):
+        """
+        private method for solving the CCA problem by using the Newton Conjugate Gradient
+        method using the lagrangian and its first and second derivatives
+        """
+
+        Ma = M.dot(a).reshape((-1, 1))
+        sigma = M.dot(M.T) / np.float(M.shape[1])  # could do - 1
+        SIGMA_HACKS = None
+        HACKS = None
+
+        def _func(X):
+            """
+            X is the concatenation of v with \lambda: [v_1, v_2, ..., v_d, \lambda]
+            """
+            v = X[:-1].reshape((-1, 1))
+            lam = X[-1]
+
+            sigma_v = sigma.dot(v)
+            stdev = np.float(np.sqrt(v.T.dot(sigma_v)))
+            #SIGMA_HACKS = [sigma_v, stdev]
+            # contains sigma_v and stdev
+            #HACKS = self.regularizer(v, hessian=True)
+            # contains f(v), J[f(v)], H[f(v)]
+    
+            fval, fjac = self.regularizer(v)
+
+            vMa = v.T.dot(Ma)
+            temp = vMa / M.shape[1] + lam * (stdev + self.eta * fval - 1)
+
+            print "objective: %.4E - vMa: %.4E - lambda: %.4E (%.4E) - f(v): %.4E" % (np.float(temp * -1), vMa, lam, vMa / M.shape[1] / (1 - fval + v.T.dot(fjac)), fval)
+            return np.float(temp * -1)
+
+
+        def _func_jac(X):
+            v = X[:-1].reshape((-1, 1))
+            lam = np.float(X[-1])
+
+            #sigma_v, stdev = SIGMA_HACKS
+            sigma_v = sigma.dot(v)
+            stdev = np.sqrt(v.T.dot(sigma_v))
+
+            fval, fjac = self.regularizer(v)
+
+            temp = np.zeros(X.shape[0])
+
+            temp[:-1] = np.reshape(Ma / M.shape[1] + lam * (sigma_v / stdev + self.eta * fjac.reshape((-1, 1))), (-1,))
+            temp[-1] = stdev + self.eta * fval - 1
+
+            return temp * -1
+
         
-        return self
+        def _func_hess(X):
+            v = X[:-1].reshape((-1, 1))
+            lam = X[-1]
+
+            #sigma_v, stdev = SIGMA_HACKS
+            #fval, fjac, fhess = HACKS
+            sigma_v = sigma.dot(v)
+            stdev = np.sqrt(v.T.dot(sigma_v))
+
+            fval, fjac, fhess = self.regularizer(v, hessian=True)
+        
+            temp = np.zeros((X.shape[0], X.shape[0]))
+            
+            # d^2 / dv^2
+            temp[:-1, :-1] = lam * (sigma / stdev).dot(np.eye(sigma.shape[0]) - np.outer(v, sigma_v)) + lam * self.eta * fhess
+            # d^2 / dlam dv
+            temp[:-1, 0:1] = sigma_v / stdev + self.eta * fjac.reshape((-1, 1))
+            # d^2 / dv dlam
+            temp[0, :-1] = temp[:-1, 0]
+            temp[-1, -1] = 0.0
+
+            return temp * -1
+
+
+        #v0 = np.ones((M.shape[0], 1), dtype=np.float)
+        v0 = np.random.normal(size=M.shape[0]).reshape((-1, 1)).astype(np.float64)
+        v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
+        v0 = np.concatenate((v0, [[1]]))
+        _func(v0)
+
+        result = fmin_ncg(_func, x0=v0, fprime=_func_jac, fhess=_func_hess)
+
+        return result
 
 
     def predict(self, M):
