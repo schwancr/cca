@@ -122,7 +122,7 @@ class CCA(object):
             return self._root(M, a)
 
         elif self._method == 'ncg':
-            return self._max_ncg(M, a)
+            return self._max_ncg2(M, a)
 
         else:
             raise Exception("bad value for method")
@@ -247,6 +247,87 @@ class CCA(object):
         v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
         v0 = np.concatenate((v0, [[1]]))
         _func(v0)
+
+        result = fmin_ncg(_func, x0=v0, fprime=_func_jac, fhess=_func_hess)
+
+        return result
+
+
+    def _max_ncg2(self, M, a):
+        """
+        private method for solving the CCA problem by using the Newton Conjugate Gradient
+        method using the lagrangian and its first and second derivatives
+        """
+
+        Ma = M.dot(a).reshape((-1, 1))
+        sigma = M.dot(M.T) / np.float(M.shape[1])  # could do - 1
+        SIGMA_HACKS = None
+        HACKS = None
+
+        def _func(X):
+            """
+            X is the concatenation of v with \lambda: [v_1, v_2, ..., v_d, \lambda]
+            """
+            v = X[:].reshape((-1, 1))
+
+            sigma_v = sigma.dot(v)
+            stdev = np.float(np.sqrt(v.T.dot(sigma_v)))
+            #SIGMA_HACKS = [sigma_v, stdev]
+            # contains sigma_v and stdev
+            #HACKS = self.regularizer(v, hessian=True)
+            # contains f(v), J[f(v)], H[f(v)]
+    
+            fval, fjac = self.regularizer(v)
+
+            vMa = v.T.dot(Ma)
+            lam = -1 * vMa / M.shape[1] / (1.0 - self.eta * fval + self.eta * v.T.dot(fjac))
+            temp = vMa / M.shape[1] + lam * (stdev + self.eta * fval - 1)
+
+            print "objective: %.4E - vMa: %.4E - lambda: %.4E (%.4E) - f(v): %.4E" % (np.float(temp * -1), vMa, lam, vMa / M.shape[1] / (1 - fval + v.T.dot(fjac)), fval)
+            return np.float(temp * -1)
+
+
+        def _func_jac(X):
+            v = X[:].reshape((-1, 1))
+            vMa = v.T.dot(Ma)
+
+            #sigma_v, stdev = SIGMA_HACKS
+            sigma_v = sigma.dot(v)
+            stdev = np.sqrt(v.T.dot(sigma_v))
+
+            fval, fjac = self.regularizer(v)
+
+            lam = -1 * vMa / M.shape[1] / (1.0 - self.eta * fval + self.eta * v.T.dot(fjac))
+            temp = np.zeros(X.shape[0])
+
+            temp[:] = np.reshape(Ma / M.shape[1] + lam * (sigma_v / stdev + self.eta * fjac.reshape((-1, 1))), (-1,))
+
+            return temp * -1
+
+        
+        def _func_hess(X):
+            v = X[:].reshape((-1, 1))
+            vMa = v.T.dot(Ma)
+
+            #sigma_v, stdev = SIGMA_HACKS
+            #fval, fjac, fhess = HACKS
+            sigma_v = sigma.dot(v)
+            stdev = np.sqrt(v.T.dot(sigma_v))
+
+            fval, fjac, fhess = self.regularizer(v, hessian=True)
+        
+            lam = -1 * vMa / M.shape[1] / (1.0 - self.eta * fval + self.eta * v.T.dot(fjac))
+            temp = np.zeros((X.shape[0], X.shape[0]))
+            
+            # d^2 / dv^2
+            temp = lam * (sigma / stdev).dot(np.eye(sigma.shape[0]) - np.outer(v, sigma_v)) + lam * self.eta * fhess
+
+            return temp * -1
+
+
+        #v0 = np.ones((M.shape[0], 1), dtype=np.float)
+        v0 = np.random.normal(size=M.shape[0]).reshape((-1, 1)).astype(np.float64)
+        v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
 
         result = fmin_ncg(_func, x0=v0, fprime=_func_jac, fhess=_func_hess)
 
