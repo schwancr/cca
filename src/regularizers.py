@@ -6,6 +6,32 @@ def l1(v, hessian=False):
 
 def l2(v, hessian=False):
     """
+    Compute the square root of the l2 norm on a vector v
+
+    Parameters
+    ----------
+    v : np.ndarray
+        vector to compute l2 norm
+
+    Returns
+    -------
+    val : value of the l2 norm of v
+    jac : value of the jacobian of the l2 norm at v
+    """
+
+    val = np.sqrt(np.sum(np.square(v)))
+    jac = v / val
+
+    if not hessian:
+        return val, jac
+
+    else:
+        hess = np.eye(jac.shape[0]) / val - np.outer(v, v) / val ** 3
+        return val, jac, hess
+
+
+def _l2_sqr(v, hessian=False):
+    """
     Compute the l2 norm on a vector v
 
     Parameters
