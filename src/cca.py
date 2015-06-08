@@ -112,7 +112,8 @@ class CCA(object):
 
         #if not self._sol.success:
         #    print "error when computing the root (%s)" % self._sol.message
-        
+        self._has_solution = True
+
         return self
 
 
@@ -283,7 +284,7 @@ class CCA(object):
             lam = -1 * vMa / M.shape[1] / (1.0 - self.eta * fval + self.eta * v.T.dot(fjac))
             temp = vMa / M.shape[1] + lam * (stdev + self.eta * fval - 1)
 
-            print "objective: %.4E - vMa: %.4E - lambda: %.4E (%.4E) - f(v): %.4E" % (np.float(temp * -1), vMa, lam, vMa / M.shape[1] / (1 - fval + v.T.dot(fjac)), fval)
+            print "objective: %.4E - vMa: %.4E - lambda: %.4E - f(v): %.4E - stdev: %.4E" % (np.float(temp * -1), vMa / M.shape[1], lam, fval, stdev)
             return np.float(temp * -1)
 
 
@@ -327,7 +328,14 @@ class CCA(object):
 
         #v0 = np.ones((M.shape[0], 1), dtype=np.float)
         v0 = np.random.normal(size=M.shape[0]).reshape((-1, 1)).astype(np.float64)
-        v0 = np.ones(M.shape[0]).reshape((-1, 1)) * 1E-5
+
+        fval, fjac = self.regularizer(v0)
+        nrm = np.sqrt(v0.T.dot(sigma.dot(v0))) + self.eta * fval
+        v0 /= np.float(nrm)
+        nrm = np.sqrt(v0.T.dot(sigma.dot(v0))) + self.eta * fval
+        print np.float(nrm)
+
+        v0 *= np.sign(v0.T.dot(Ma))
 
         result = fmin_ncg(_func, x0=v0, fprime=_func_jac, fhess=_func_hess)
 
@@ -437,6 +445,7 @@ class CCA(object):
         kwargs['regularizer'] = np.array([pickle.dumps(self.regularizer)])
         kwargs['eta'] = np.array([self.eta])
 
+        print 'has_solution?', self._has_solution
         if self._has_solution:
             kwargs['sol'] = self.v
 
